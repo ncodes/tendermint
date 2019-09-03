@@ -39,7 +39,7 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spf13/viper v1.0.0
 	github.com/stretchr/testify v1.3.0
-	github.com/tendermint/go-amino v0.15.1-0.20190807100446-27fcf2ff54e1
+	github.com/tendermint/go-amino v0.15.1-0.20190903165443-3ac3499e7042
 	github.com/tendermint/tm-db v0.1.1
 	golang.org/x/arch v0.0.0-20190312162104-788fe5ffcd8c // indirect
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2

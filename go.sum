@@ -123,6 +123,8 @@ github.com/tendermint/go-amino v0.14.1 h1:o2WudxNfdLNBwMyl2dqOJxiro5rfrEaU0Ugs6o
 github.com/tendermint/go-amino v0.14.1/go.mod h1:i/UKE5Uocn+argJJBb12qTZsCDBcAYMbR92AaJVmKso=
 github.com/tendermint/go-amino v0.15.1-0.20190807100446-27fcf2ff54e1 h1:LhmH6VpPWkQMVA6XiKt0uFuW0ycUHgAYpB9lnzA0kOw=
 github.com/tendermint/go-amino v0.15.1-0.20190807100446-27fcf2ff54e1/go.mod h1:08dbbE8fAQMUlUYpXjV3v6CvqPn13mfnB+whRYV796c=
+github.com/tendermint/go-amino v0.15.1-0.20190903165443-3ac3499e7042 h1:xDktyjoNulFL/la3dko6abkHCg51JTWHyN01vLWL81Y=
+github.com/tendermint/go-amino v0.15.1-0.20190903165443-3ac3499e7042/go.mod h1:08dbbE8fAQMUlUYpXjV3v6CvqPn13mfnB+whRYV796c=
 github.com/tendermint/tm-db v0.0.0-20190731085305-94017c88bf1d h1:yCHL2COLGLNfb4sA9AlzIHpapb8UATvAQyJulS6Eg6Q=
 github.com/tendermint/tm-db v0.0.0-20190731085305-94017c88bf1d/go.mod h1:0cPKWu2Mou3IlxecH+MEUSYc1Ch537alLe6CpFrKzgw=
 github.com/tendermint/tm-db v0.1.1 h1:G3Xezy3sOk9+ekhjZ/kjArYIs1SmwV+1OUgNkj7RgV0=
