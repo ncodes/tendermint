@@ -18,6 +18,10 @@ var (
 	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout))
 )
 
+func SetConfig(c *cfg.Config) {
+	config = c
+}
+
 func init() {
 	registerFlagsRootCmd(RootCmd)
 }
