@@ -4,8 +4,8 @@ As explained in [link to fork accountability doc] we say that a fork is a case i
 observed two commits for different blocks at the same height of the blockchain. With Tendermint consensus protocol, a fork can only
 happen if Tendermint Failure Model[reference to lite client doc] does not hold, i.e., we have more than 1/3 of voting power under control
 of faulty validators in the relevant validator set.
-In this document we focus on detections of forks only by lite clients, i.e., we assume that there are no forks on the main chain,
-and fork is only used to attack particular lite clients.
+In this document we focus on detections of forks observed only by lite clients, i.e., we assume that there are no forks 
+on the main chain, and that a fork is used as an attack to a particular lite client.
 
 There are several sub-problems we will cover in this document:
 
@@ -17,368 +17,49 @@ There are several sub-problems we will cover in this document:
 
 ## Detecting forks
 
-A fork is defined as a deviation from the main chain. Therefore we assume that there exists a main chain C1 (sequence of blocks) 
-and then a fork corresponds to an existence of a commit for block B for height h that is different from block at height h
-of the chain C1. Furthermore, a commit for the block B is a valid fork if it contains at least a single valid signature 
-signed by a validator from the validator set at height h at chain C1.
+A fork is defined as a deviation (of list of blocks) from the main chain. In this document we will assume that there exists 
+a main chain C1 (sequence of blocks) and an honest full node F that is synced to the chain C1. Then a fork corresponds 
+to an existence of a commit for block B for height h that is different from a block at height h
+on the chain C1. Furthermore, a commit for the block B is a "valid" fork if it contains at least a single valid signature 
+by a validator from the validator set at height h at chain C1. This definition of valid fork is needed to differentiate
+forks that can provide material for punishment mechanisms (slashing) from bogus data that looks like a valid commit
+but is signed by processes that are not tracked by the system (and therefore can't be punished).
 
-As explained in [lite-client.md] a lite client establish a connection with a full node and it verify application states of interest
-by downloading and verifying block headers. To be able to detect a fork, we need additional module that in parallel with 
-core lite client business, establish connection to other peers and verify correctness of obtained headers. It is the responsibility
-of this module to detect a fork. 
-
-A simple protocol might work as follows:
-
-- lite client manages list of peers (full nodes)
-- randomly select a node from the peer list and pull a header for some height h for which main module downloaded 
-header and that is still covered by the UNBONDING_PERIOD
-- if headers don't match ...
-
-[NOTE] Detecting conflicting headers is a sign of an attack, but it could be benign if commit is signed by 
-non-existing validators. How we can capture assumption of talking to an honest full node here?
+As explained in [lite-client.md] a lite client establish a connection with a full node and it verifies application states 
+of interest by downloading and verifying corresponding block headers. To be able to detect a fork, we assume an additional 
+module (fork detection module) that runs in parallel with the core lite client module, and whose role is fork detection. 
+The fork detection module maintains a list of peers (full nodes) and it periodically establishes a connection to some peer 
+(called witness) and verify correctness of headers downloaded by main module (by cross-checking with headers downloaded
+from witnesses). In case there are two different headers for the same height signed by overlapping validator sets,
+then a client downloads corresponding commits and creates a proof of valid fork.
 
 ## Identifying faulty validators 
 
-We assume (in the first version) existence of a centralized, trusted component called monitor that will be processing forks and
-identifying faulty processes (and optionally generating evidences of misbehavior). Monitor is a full node that
-runs on the main chain.
-
-Monitor is triggered by receiving two conflicting commits. A commit contains hash of the block, height, round, validator set,
-and set of signatures by the processes in the validator set. 
-
-case 1: validator sets are different. canonical commit C1 is signed by valset V1 and conflicting commit C2 is signed by valset V2.
-In this case, validators from V2 that are not in V1 misbehaved as they are signing in heights they are not validators. 
-So commit C2 is an evidence of misbehavior for them. For validators that are present in both sets we need additional checks:
-
-- in case commits are for the same round and validators signed different precommit messages then we have equivocation misbehavior.
-In this case we can easily create evidence of misbehavior. 
-
-- in case commits are for different rounds we need to run full detection procedure:
-
-
-
-
-Once monitor detects a valid fork, it starts the following procedure:
-
-- 
-
-
-
-
-
-
-## Problem statement
-
-
-We assume that the lite client knows a (base) header *inithead* it trusts (by social consensus or because the lite client has decided to trust the header before). The goal is to check whether another header *newhead* can be trusted based on the data in *inithead*.
-
-The correctness of the protocol is based on the assumption that *inithead* was generated by an instance of Tendermint consensus. The term "trusting" above indicates that the correctness on the protocol depends on this assumption. It is in the responsibility of the user that runs the lite client to make sure that the risk of trusting a corrupted/forged *inithead* is negligible.
-
-
-## Definitions
-
-### Data structures
-
-In the following, only the details of the data structures needed for this specification are given.
-
-  * header fields
-    - *height*
-    - *bfttime*: the chain time when the header (block) was generated
-    - *V*: validator set containing validators for this block.
-    - *NextV*: validator set for next block.
-    - *commit*: evidence that block with height *height* - 1 was committed by a set of validators (canonical commit). We will use ```signers(commit)``` to refer to the set of validators that committed the block.
-
-  * signed header fields: contains a header and a  *commit* for the current header; a "seen commit". In the Tendermint consensus the "canonical commit" is stored in header *height* + 1.
-
-  * For each header *h* it has locally stored, the lite client stores whether
-    it trusts *h*. We write *trust(h) = true*, if this is the case.
-
-  * Validator fields. We will write a validator as a tuple *(v,p)* such that
-    + *v* is the identifier (we assume identifiers are unique in each validator set)
-    + *p* is its voting power
-
-
-### Functions
-
-For the purpose of this lite client specification, we assume that the Tendermint Full Node exposes the following function over Tendermint RPC:
-```go
-    func Commit(height int64) (SignedHeader, error)
-      // returns signed header: header (with the fields from
-      // above) with Commit that include signatures of
-      // validators that signed the header
-
-
-    type SignedHeader struct {
-      Header        Header
-      Commit        Commit
-    }
-```
-
-### Definitions
-
-* *tp*: trusting period   
-* for realtime *t*, the predicate *correct(v,t)* is true if the validator *v*
-  follows the protocol until time *t* (we will see about recovery later).
-
-
-
-
-### Tendermint Failure Model
-
-If a block *h* is generated at time *bfttime* (and this time is stored in the block), then a set of validators that hold more than 2/3 of the voting power in h.Header.NextV is correct until time h.Header.bfttime + tp.
-
-Formally,
-\[
-\sum_{(v,p) \in h.Header.NextV \wedge correct(v,h.Header.bfttime + tp)} p >
-2/3 \sum_{(v,p) \in h.Header.NextV} p
-\]
-
-*Assumption*: "correct" is defined w.r.t. realtime (some Newtonian global notion of time, i.e., wall time), while *bfttime* corresponds to the reading of the local clock of a validator (how this time is computed may change when the Tendermint consensus is modified). In this note, we assume that all clocks are synchronized to realtime. We can make this more precise eventually (incorporating clock drift, accuracy, precision, etc.). Right now, we consider this assumption sufficient, as clock synchronization (under NTP) is in the order of milliseconds and *tp* is in the order of weeks.  
-
-*Remark*: This failure model might change to a hybrid version that takes heights into account in the future.
-
-The specification in this document considers an implementation of the lite client under this assumption. Issues like *counter-factual signing* and *fork accountability* and *evidence submission* are mechanisms that justify this assumption by incentivizing validators to follow the protocol.
-If they don't, and we have more that 1/3 faults, safety may be violated. Our approach then is to *detect* these cases (after the fact), and take suitable repair actions (automatic and social). This is discussed in an upcoming document on "Fork accountability". (These safety violations include the lite client wrongly trusting a header, a fork in the blockchain, etc.)
-
-
-## Lite Client Trusting Spec
-
-The lite client communicates with a full node and learns new headers. The goal is to locally decide whether to trust a header. Our implementation needs to ensure the following two properties:
-
-- Lite Client Completeness: If header *h* was correctly generated by an instance of Tendermint consensus (and its age is less than the trusting period), then the lite client should eventually set *trust(h)* to true.
-
-- Lite Client Accuracy:  If header *h* was *not generated* by an instance of Tendermint consensus, then the lite client should never set *trust(h)* to true.
-
-*Remark*: If in the course of the computation, the lite client obtains certainty that some headers were forged by adversaries (that is were not generated by an instance of Tendermint consensus), it may submit (a subset of) the headers it has seen as evidence of misbehavior.
-
-*Remark*: In Completeness we use "eventually", while in practice *trust(h)* should be set to true before *h.Header.bfttime + tp*. If not, the block cannot be trusted because it is too old.
-
-*Remark*: If a header *h* is marked with *trust(h)*, but it is too old (its bfttime is more than *tp* ago), then the lite client should set *trust(h)* to false again.
-
-*Assumption*: Initially, the lite client has a header *inithead* that it trusts correctly, that is, *inithead* was correctly generated by the Tendermint consensus.
-
-To reason about the correctness, we may prove the following invariant.
-
-*Verification Condition: Lite Client Invariant.*
- For each lite client *l* and each header *h*:
-if *l* has set *trust(h) = true*,
-  then validators that are correct until time *h.Header.bfttime + tp* have more than two thirds of the voting power in *h.Header.NextV*.
-
-  Formally,
-  \[
-  \sum_{(v,p) \in h.Header.NextV \wedge correct(v,h.Header.bfttime + tp)} p >
-  2/3 \sum_{(v,p) \in h.Header.NextV} p
-  \]
-
-*Remark.* To prove the invariant, we will have to prove that the lite client only trusts headers that were correctly generated by Tendermint consensus, then the formula above follows from the Tendermint failure model.
-
-
-## High Level Solution
-
-Upon initialization, the lite client is given a header *inithead* it trusts (by
-social consensus). It is assumed that *inithead* satisfies the lite client invariant. (If *inithead* has been correctly generated by Tendermint consensus, the invariant follows from the Tendermint Failure Model.)
-
-When a lite clients sees a signed new header *snh*, it has to decide whether to trust the new
-header. Trust can be obtained by (possibly) the combination of three methods.
-
-1. **Uninterrupted sequence of proof.** If a block is appended to the chain, where the last block
-is trusted (and properly committed by the old validator set in the next block),
-and the new block contains a new validator set, the new block is trusted if the lite client knows all headers in the prefix.
-Intuitively, a trusted validator set is assumed to only chose a new validator set that will obey the Tendermint Failure Model.
-
-2. **Trusting period.** Based on a trusted block *h*, and the lite client
-invariant, which ensures the fault assumption during the trusting period, we can check whether at least one  validator, that has been continuously correct from *h.Header.bfttime* until now, has signed *snh*.
-If this is the case, similarly to above, the chosen validator set in *snh* does not violate the Tendermint Failure Model.
-
-3. **Bisection.** If a check according to the trusting period fails, the lite client can try to obtain a header *hp* whose height lies between *h* and *snh* in order to check whether *h* can be used to get trust for *hp*, and *hp* can be used to get trust for *snh*. If this is the case we can trust *snh*; if not, we may continue recursively.
-
-## How to use it
-
-We consider the following use case:
- the lite client wants to verify a header for some given height *k*. Thus:
-  - it requests the signed header for height *k* from a full node
-  - it tries to verify this header with the methods described here.
-
-This can be used in several settings:
-  - someone tells the lite client that application data that is relevant for it can be read in the block of height *k*.
-  - the lite clients wants the latest state. It asks a full nude for the current height, and uses the response for *k*.
-
-
-## Details
-
-*Assumptions*
-
-1. *tp < unbonding period*.
-2. *snh.Header.bfttime < now*
-3. *snh.Header.bfttime < h.Header.bfttime+tp*
-4. *trust(h)=true*
-
-
-**Observation 1.** If *h.Header.bfttime + tp > now*, we trust the old
-validator set *h.Header.NextV*.
-
-When we say we trust *h.Header.NextV* we do *not* trust that each individual validator in *h.Header.NextV* is correct, but we only trust the fact that at most 1/3 of them are faulty (more precisely, the faulty ones have at most 1/3 of the total voting power).
-
-
-
-### Functions
-
-The function *Bisection* checks whether to trust header *h2* based on the trusted header *h1*. It does so by calling
-the function *CheckSupport* in the process of
-bisection/recursion. *CheckSupport* implements the trusted period method and, for two adjacent headers (in term of heights), it checks uninterrupted sequence of proof.
-
-*Assumption*: In the following, we assume that *h2.Header.height > h1.Header.height*. We will quickly discuss the other case in the next section.
-
-We consider the following set-up:
-- the lite client communicates with one full node
-- the lite client locally stores all the signed headers it obtained (trusted or not). In the pseudo code below we write *Store(header)* for this.
-- If *Bisection* returns *false*, then the lite client has seen a  forged header.
-  * However, it does not know which header(s) is/are the problematic one(s).
-  * In this case, the lite client can submit (some of) the headers it has seen as evidence. As the lite client communicates with one full node only when executing Bisection, there are two cases
-    - the full node is faulty
-    - the full node is correct and there was a fork in Tendermint consensus. Header *h1* is from a different branch than the one taken by the full node. This case is not focus of this document, but will be treated in the document on fork accountability.
-
-- the lite client must retry to retrieve correct headers from another full node
-  * it picks a new full node
-  * it restarts *Bisection*
-  * there might be optimizations; a lite client may not need to call *Commit(k)*, for a height *k* for which it already has a signed header it trusts.
-  * how to make sure that a lite client can communicate with a correct full node will be the focus of a separate document (recall Issue 3 from "Context of this document").
-
-**Auxiliary Functions.** We will use the  function ```votingpower_in(V1,V2)``` to compute the voting power the validators in set V1 have according to their voting power in set V2;
-we will write ```totalVotingPower(V)``` for ```votingpower_in(V,V)```, which returns the total voting power in V.
-We further use the function ```signers(Commit)``` that returns the set of validators that signed the Commit.
-
-**CheckSupport.** The following function checks whether we can trust the header h2 based on header h1 following the trusting period method.
-
-```go
-  func CheckSupport(h1,h2,trustlevel) bool {
-    if h1.Header.bfttime + tp < now { // Observation 1
-      return false // old header was once trusted but it is expired
-    }  
-    vp_all := totalVotingPower(h1.Header.NextV)
-      // total sum of voting power of validators in h2
-
-    if h2.Header.height == h1.Header.height + 1 {
-      // specific check for adjacent headers; everything must be
-      // properly signed.
-      // also check that h2.Header.V == h1.Header.NextV
-      // Plus the following check that 2/3 of the voting power
-      // in h1 signed h2
-      return (votingpower_in(signers(h2.Commit),h1.Header.NextV) >
-              2/3 * vp_all)
-        // signing validators are more than two third in h1.
-    }
-
-    return (votingpower_in(signers(h2.Commit),h1.Header.NextV) >
-            max(1/3,trustlevel) * vp_all)
-      // get validators in h1 that signed h2
-      // sum of voting powers in h1 of
-      // validators that signed h2
-      // is more than a third in h1
-  }
-```
-
-  *Remark*: Basic header verification must be done for *h2*. Similar checks are done in:  
-  https://github.com/tendermint/tendermint/blob/master/types/validator_set.go#L591-L633
-
-  *Remark*: There are some sanity checks which are not in the code:
-  *h2.Header.height > h1.Header.height* and *h2.Header.bfttime > h1.Header.bfttime* and *h2.Header.bfttime < now*.
-
-  *Remark*: ```return (votingpower_in(signers(h2.Commit),h1.Header.NextV) > max(1/3,trustlevel) * vp_all)``` may return false even if *h2* was properly generated by Tendermint consensus in the case of big changes in the validator sets. However, the check ```return (votingpower_in(signers(h2.Commit),h1.Header.NextV) >
-          2/3 * vp_all)``` must return true if *h1* and *h2* were generated by Tendermint consensus.
-
-*Remark*: The 1/3 check differs from a previously proposed method that was based on intersecting validator sets and checking that the new validator set contains "enough" correct validators. We found that the old check is not suited for realistic changes in the validator sets. The new method is not only based on cardinalities, but also exploits that we can trust what is signed by a correct validator (i.e., signed by more than 1/3 of the voting power).
-
-*Correctness arguments*
-
-Towards Lite Client Accuracy:
-- Assume by contradiction that *h2* was not generated correctly and the lite client sets trust to true because *CheckSupport* returns true.
-- h1 is trusted and sufficiently new
-- by Tendermint Fault Model, less than 1/3 of voting power held by faulty validators => at least one correct validator *v* has signed *h2*.
-- as *v* is correct up to now, it followed the Tendermint consensus protocol at least up to signing *h2* => *h2* was correctly generated, we arrive at the required contradiction.
-
-
-Towards Lite Client Completeness:
-- The check is successful if sufficiently many validators of *h1* are still validators in *h2* and signed *h2*.
-- If *h2.Header.height = h1.Header.height + 1*, and both headers were generated correctly, the test passes
-
-*Verification Condition:* We may need a Tendermint invariant stating that if *h2.Header.height = h1.Header.height + 1* then *signers(h2.Commit) \subseteq h1.Header.NextV*.
-
-*Remark*: The variable *trustlevel* can be used if the user believes that relying on one correct validator is not sufficient. However, in case of (frequent) changes in the validator set, the higher the *trustlevel* is chosen, the more unlikely it becomes that CheckSupport returns true for non-adjacent headers.
-
-**Bisection.** The following function uses CheckSupport in a recursion to find intermediate headers that allow to establish a sequence of trust.
-
-
-
-
-```go
-func Bisection(h1,h2,trustlevel) bool{
-  if CheckSupport(h1,h2,trustlevel) {
-    return true
-  }
-  if h2.Header.height == h1.Header.height + 1 {
-    // we have adjacent headers that are not matching (failed
-    // the CheckSupport)
-    // we could submit evidence here
-    return false
-  }
-  pivot := (h1.Header.height + h2.Header.height) / 2
-  hp := Commit(pivot)
-    // ask a full node for header of height pivot
-  Store(hp)  
-    // store header hp locally
-  if Bisection(h1,hp,trustlevel) {
-    // only check right branch if hp is trusted
-    // (otherwise a lot of unnecessary computation may be done)
-    return Bisection(hp,h2,trustlevel)
-  }
-  else {
-    return false
-  }
-}
-```  
-
-
-
-
-*Correctness arguments (sketch)*
-
-Lite Client Accuracy:
-- Assume by contradiction that *h2* was not generated correctly and the lite client sets trust to true because Bisection returns true.
-- Bisection returns true only if all calls to CheckSupport in the recursion return true.
-- Thus we have a sequence of headers that all satisfied the CheckSupport
-- again a contradiction
-
-Lite Client Completeness:
-
-This is only ensured if upon *Commit(pivot)* the lite client is always provided with a correctly generated header.
-
-*Stalling*
-
-With Bisection, a faulty full node could stall a lite client by creating a long sequence of headers that are queried one-by-one by the lite client and look OK, before the lite client eventually detects a problem. There are several ways to address this:
-* Each call to ```Commit``` could be issued to a different full node
-* Instead of querying header by header, the lite client tells a full node which header it trusts, and the height of the header it needs. The full node responds with the header along with a proof consisting of intermediate headers that the light client can use to verify. Roughly, Bisection would then be executed at the full node.
-* We may set a timeout how long bisection may take.
-
-
-### The case *h2.Header.height < h1.Header.height*
-
-In the use case where someone tells the lite client that application data that is relevant for it can be read in the block of height *k* and the lite client trusts a more recent header, we can use the hashes to verify headers "down the chain." That is, we iterate down the heights and check the hashes in each step.
-
-*Remark.* For the case were the lite client trusts two headers *i* and *j* with *i < k < j*, we should discuss/experiment whether the forward or the backward method is more effective.
-
-```go
-func Backwards(h1,h2) bool {
-  assert (h2.Header.height < h1.Header.height)
-  old := h1
-  for i := h1.Header.height - 1; i > h2.Header.height; i-- {
-    new := Commit(i)
-    Store(new)
-    if (hash(new) != old.Header.hash) {
-      return false
-    }
-    old := new
-  }
-  return (hash(h2) == old.Header.hash)
- }
-```
+Once an honest lite client detects a valid fork it needs to submit it to an honest full node for further processing so
+that faulty validators can be detected and punished. For the purpose of this document we assume that a lite client
+is able to submit a proof of fork to an honest full node in reasonable time (how we can ensure that will be addressed in a
+separate document). 
+
+For the purpose of this document we assume existence of the following information for each commit: hash of the block, 
+height, round, validator set and a set of signatures by the processes in the given validator set. An honest full node starts
+the procedure that detects misbehaving validators from the following information: for some height h, there are two
+conflicting commits C1 and C2, where C1 is a commit from the main chain. The detection procedure works like this:  
+
+1) if there are processes from the set signers(C2) that are not part of C1.valset, they misbehaved as they are signing 
+   protocol messages in heights they are not validators. In this case commit C2 is a self-contained evidence of misbehavior 
+   for those processes that can be simply verified by every honest validators without additional information.  
+   For processes from the set signers(C2) that are part of C1.valset we need additional checks:
+
+2) if C1.round == C2.round, and some processes signed different precommit messages in both commits, then it is an 
+   equivocation misbehavior. Similarly as above, we can easily create an evidence of misbehavior. Note that in this case
+   there might be additional misbehavior, but its detection require more complex detection procedure that we explain next.  
+
+3) if C1.round != C2.round we need to run full detection procedure. We assume (in the first version) that the full detection
+   procedure is executed by a centralized, trusted component called monitor that will be processing proof of forks and 
+   identifying faulty processes (and optionally generating evidences of misbehavior). Monitor is an honest full node that runs 
+   on the main chain. Monitor is triggered by receiving two conflicting commits where C1.round != C2.round. The procedure starts
+   by declaring processes that are in the set C1.valset as suspected. This can be for example done by posting a special transaction
+   on the main chain. After suspected processes are declared, they are obliged to submit votes (prevote and precommit) for 
+   the given height for the subset of rounds [C1.round, C2.round] to the monitor process within MONITOR_RESPONSE_PERIOD.
+   Validators that do not submit its vote sets within this period are considered faulty (how can we create verifiable
+   absence of vote sets?) 
