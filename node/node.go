@@ -1045,6 +1045,15 @@ func (n *Node) NodeInfo() p2p.NodeInfo {
 	return n.nodeInfo
 }
 
+// customChannels includes channels not originally
+// supported by tendermint core.
+var customChannels = []byte{}
+
+// AddChannels adds custom channels.
+func AddChannels(chs []byte) {
+	customChannels = append(customChannels, chs...)
+}
+
 func makeNodeInfo(
 	config *cfg.Config,
 	nodeKey *p2p.NodeKey,
@@ -1076,12 +1085,12 @@ func makeNodeInfo(
 		ID_:     nodeKey.ID(),
 		Network: genDoc.ChainID,
 		Version: version.TMCoreSemVer,
-		Channels: []byte{
+		Channels: append([]byte{
 			bcChannel,
 			cs.StateChannel, cs.DataChannel, cs.VoteChannel, cs.VoteSetBitsChannel,
 			mempl.MempoolChannel,
 			evidence.EvidenceChannel,
-		},
+		}, customChannels...),
 		Moniker: config.Moniker,
 		Other: p2p.DefaultNodeInfoOther{
 			TxIndex:    txIndexerStatus,
