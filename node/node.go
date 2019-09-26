@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tendermint/tendermint/mempool"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -189,7 +191,7 @@ type Node struct {
 	stateDB          dbm.DB
 	blockStore       *store.BlockStore // store the blockchain to disk
 	bcReactor        p2p.Reactor       // for fast-syncing
-	mempoolReactor   *mempl.Reactor    // for gossipping transactions
+	mempoolReactor   p2p.Reactor       // for gossipping transactions
 	mempool          mempl.Mempool
 	consensusState   *cs.ConsensusState     // latest consensus state
 	consensusReactor *cs.ConsensusReactor   // for participating in the consensus
@@ -312,8 +314,7 @@ func onlyValidatorIsUs(state sm.State, privVal types.PrivValidator) bool {
 }
 
 func createMempoolAndMempoolReactor(config *cfg.Config, proxyApp proxy.AppConns,
-	state sm.State, memplMetrics *mempl.Metrics, logger log.Logger) (*mempl.Reactor, *mempl.CListMempool) {
-
+	state sm.State, memplMetrics *mempl.Metrics, logger log.Logger) (p2p.Reactor, mempl.Mempool) {
 	mempool := mempl.NewCListMempool(
 		config.Mempool,
 		proxyApp.Mempool(),
@@ -371,7 +372,7 @@ func createConsensusReactor(config *cfg.Config,
 	state sm.State,
 	blockExec *sm.BlockExecutor,
 	blockStore sm.BlockStore,
-	mempool *mempl.CListMempool,
+	mempool mempl.Mempool,
 	evidencePool *evidence.EvidencePool,
 	privValidator types.PrivValidator,
 	csMetrics *cs.Metrics,
@@ -460,7 +461,7 @@ func createSwitch(config *cfg.Config,
 	transport *p2p.MultiplexTransport,
 	p2pMetrics *p2p.Metrics,
 	peerFilters []p2p.PeerFilterFunc,
-	mempoolReactor *mempl.Reactor,
+	mempoolReactor p2p.Reactor,
 	bcReactor p2p.Reactor,
 	consensusReactor *consensus.ConsensusReactor,
 	evidenceReactor *evidence.EvidenceReactor,
@@ -534,11 +535,68 @@ func createPEXReactorAndAddToSwitch(addrBook pex.AddrBook, config *cfg.Config,
 	return pexReactor
 }
 
+// CustomMempool includes a mempool and a mempool reactor
+type CustomMempool struct {
+	Mempool        mempool.Mempool
+	MempoolReactor p2p.Reactor
+}
+
+// NewNodeWithCustomMempool returns a Node configured with
+// the given custom Mempool and Mempool reactor.
+func NewNodeWithCustomMempool(config *cfg.Config,
+	privValidator types.PrivValidator,
+	nodeKey *p2p.NodeKey,
+	clientCreator proxy.ClientCreator,
+	customMempool *CustomMempool,
+	genesisDocProvider GenesisDocProvider,
+	dbProvider DBProvider,
+	metricsProvider MetricsProvider,
+	logger log.Logger,
+	options ...Option) (*Node, error) {
+	return newNode(
+		config,
+		privValidator,
+		nodeKey,
+		clientCreator,
+		customMempool,
+		genesisDocProvider,
+		dbProvider,
+		metricsProvider,
+		logger,
+		options...,
+	)
+}
+
 // NewNode returns a new, ready to go, Tendermint Node.
 func NewNode(config *cfg.Config,
 	privValidator types.PrivValidator,
 	nodeKey *p2p.NodeKey,
 	clientCreator proxy.ClientCreator,
+	genesisDocProvider GenesisDocProvider,
+	dbProvider DBProvider,
+	metricsProvider MetricsProvider,
+	logger log.Logger,
+	options ...Option) (*Node, error) {
+	return newNode(
+		config,
+		privValidator,
+		nodeKey,
+		clientCreator,
+		nil,
+		genesisDocProvider,
+		dbProvider,
+		metricsProvider,
+		logger,
+		options...,
+	)
+}
+
+// newNode returns a new, ready to go, Tendermint Node.
+func newNode(config *cfg.Config,
+	privValidator types.PrivValidator,
+	nodeKey *p2p.NodeKey,
+	clientCreator proxy.ClientCreator,
+	customMempool *CustomMempool,
 	genesisDocProvider GenesisDocProvider,
 	dbProvider DBProvider,
 	metricsProvider MetricsProvider,
@@ -612,8 +670,14 @@ func NewNode(config *cfg.Config,
 
 	csMetrics, p2pMetrics, memplMetrics, smMetrics := metricsProvider(genDoc.ChainID)
 
-	// Make MempoolReactor
-	mempoolReactor, mempool := createMempoolAndMempoolReactor(config, proxyApp, state, memplMetrics, logger)
+	// Make MempoolReactor if no custom mempool and mempool reactor is provided
+	var mempoolReactor p2p.Reactor
+	var mempool mempool.Mempool
+	if customMempool == nil {
+		mempoolReactor, mempool = createMempoolAndMempoolReactor(config, proxyApp, state, memplMetrics, logger)
+	} else {
+		mempoolReactor, mempool = customMempool.MempoolReactor, customMempool.Mempool
+	}
 
 	// Make Evidence Reactor
 	evidenceReactor, evidencePool, err := createEvidenceReactor(config, dbProvider, stateDB, logger)
@@ -983,7 +1047,7 @@ func (n *Node) ConsensusReactor() *cs.ConsensusReactor {
 }
 
 // MempoolReactor returns the Node's mempool reactor.
-func (n *Node) MempoolReactor() *mempl.Reactor {
+func (n *Node) MempoolReactor() p2p.Reactor {
 	return n.mempoolReactor
 }
 
