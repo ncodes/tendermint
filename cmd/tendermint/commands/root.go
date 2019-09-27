@@ -18,8 +18,16 @@ var (
 	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout))
 )
 
+// SetConfig sets the default config
+// Note: mosdef addition
 func SetConfig(c *cfg.Config) {
 	config = c
+}
+
+// SetLoggerToNoop sets the logger to a Noop.
+// Note: mosdef addition
+func SetLoggerToNoop() {
+	logger = log.NewNopLogger()
 }
 
 func init() {
