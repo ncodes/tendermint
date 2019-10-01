@@ -84,6 +84,7 @@ func TestNewBlockStore(t *testing.T) {
 	}
 
 	for i, tt := range panicCausers {
+		tt := tt
 		// Expecting a panic here on trying to parse an invalid blockStore
 		_, _, panicErr := doFn(func() (interface{}, error) {
 			db.Set(blockStoreKey, tt.data)
@@ -168,8 +169,8 @@ func TestBlockStoreSaveLoadBlock(t *testing.T) {
 		block      *types.Block
 		parts      *types.PartSet
 		seenCommit *types.Commit
-		wantErr    bool
 		wantPanic  string
+		wantErr    bool
 
 		corruptBlockInDB      bool
 		corruptCommitInDB     bool
@@ -253,6 +254,7 @@ func TestBlockStoreSaveLoadBlock(t *testing.T) {
 	}
 
 	for i, tuple := range tuples {
+		tuple := tuple
 		bs, db := freshBlockStore()
 		// SaveBlock
 		res, err, panicErr := doFn(func() (interface{}, error) {
