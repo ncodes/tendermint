@@ -62,6 +62,9 @@ func (bs *BlockStore) LoadBlock(height int64) *types.Block {
 	buf := []byte{}
 	for i := 0; i < blockMeta.BlockID.PartsHeader.Total; i++ {
 		part := bs.LoadBlockPart(height, i)
+		if part == nil {
+			return nil
+		}
 		buf = append(buf, part.Bytes...)
 	}
 	err := cdc.UnmarshalBinaryLengthPrefixed(buf, block)
