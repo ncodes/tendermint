@@ -13,6 +13,11 @@ import (
 	dbm "github.com/tendermint/tm-db"
 )
 
+// ErrCodeReExecBlock describes a code for instructing the re-execution of a
+// block. The ABCI app can return this code as a transaction execution response
+// code to force the execution of the containing block.
+const ErrCodeReExecBlock = uint32(10)
+
 //-----------------------------------------------------------------------------
 // BlockExecutor handles block execution and state updates.
 // It exposes ApplyBlock(), which validates & executes the block, updates state w/ ABCI responses,
@@ -242,6 +247,7 @@ func execBlockOnProxyApp(
 	block *types.Block,
 	stateDB dbm.DB,
 ) (*ABCIResponses, error) {
+execute:
 	var validTxs, invalidTxs = 0, 0
 
 	txIndex := 0
@@ -282,10 +288,18 @@ func execBlockOnProxyApp(
 	}
 
 	// Run txs of block.
+	// Immediately re-execute the block if a transaction returns ErrCodeReExecBlock.
 	for _, tx := range block.Txs {
-		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
+		x := proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
 			return nil, err
+		}
+
+		if x.Response.GetDeliverTx().Code == ErrCodeReExecBlock {
+			reason := x.Response.GetDeliverTx().GetLog()
+			logger.Error("Block code detected...re-executing block", "reason", reason)
+			time.Sleep(1 * time.Second)
+			goto execute
 		}
 	}
 
