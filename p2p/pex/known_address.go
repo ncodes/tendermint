@@ -6,9 +6,9 @@ import (
 	"github.com/tendermint/tendermint/p2p"
 )
 
-// knownAddress tracks information about a known network address
+// KnownAddress tracks information about a known network address
 // that is used to determine how viable an address is.
-type knownAddress struct {
+type KnownAddress struct {
 	Addr        *p2p.NetAddress `json:"addr"`
 	Src         *p2p.NetAddress `json:"src"`
 	Buckets     []int           `json:"buckets"`
@@ -18,8 +18,8 @@ type knownAddress struct {
 	LastSuccess time.Time       `json:"last_success"`
 }
 
-func newKnownAddress(addr *p2p.NetAddress, src *p2p.NetAddress) *knownAddress {
-	return &knownAddress{
+func newKnownAddress(addr *p2p.NetAddress, src *p2p.NetAddress) *KnownAddress {
+	return &KnownAddress{
 		Addr:        addr,
 		Src:         src,
 		Attempts:    0,
@@ -29,32 +29,32 @@ func newKnownAddress(addr *p2p.NetAddress, src *p2p.NetAddress) *knownAddress {
 	}
 }
 
-func (ka *knownAddress) ID() p2p.ID {
+func (ka *KnownAddress) ID() p2p.ID {
 	return ka.Addr.ID
 }
 
-func (ka *knownAddress) isOld() bool {
+func (ka *KnownAddress) isOld() bool {
 	return ka.BucketType == bucketTypeOld
 }
 
-func (ka *knownAddress) isNew() bool {
+func (ka *KnownAddress) isNew() bool {
 	return ka.BucketType == bucketTypeNew
 }
 
-func (ka *knownAddress) markAttempt() {
+func (ka *KnownAddress) markAttempt() {
 	now := time.Now()
 	ka.LastAttempt = now
 	ka.Attempts++
 }
 
-func (ka *knownAddress) markGood() {
+func (ka *KnownAddress) markGood() {
 	now := time.Now()
 	ka.LastAttempt = now
 	ka.Attempts = 0
 	ka.LastSuccess = now
 }
 
-func (ka *knownAddress) addBucketRef(bucketIdx int) int {
+func (ka *KnownAddress) addBucketRef(bucketIdx int) int {
 	for _, bucket := range ka.Buckets {
 		if bucket == bucketIdx {
 			// TODO refactor to return error?
@@ -66,7 +66,7 @@ func (ka *knownAddress) addBucketRef(bucketIdx int) int {
 	return len(ka.Buckets)
 }
 
-func (ka *knownAddress) removeBucketRef(bucketIdx int) int {
+func (ka *KnownAddress) removeBucketRef(bucketIdx int) int {
 	buckets := []int{}
 	for _, bucket := range ka.Buckets {
 		if bucket != bucketIdx {
@@ -95,7 +95,7 @@ func (ka *knownAddress) removeBucketRef(bucketIdx int) int {
    worth keeping hold of.
 
 */
-func (ka *knownAddress) isBad() bool {
+func (ka *KnownAddress) isBad() bool {
 	// Is Old --> good
 	if ka.BucketType == bucketTypeOld {
 		return false
