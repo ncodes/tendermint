@@ -13,8 +13,6 @@ import (
 	dbm "github.com/tendermint/tm-db"
 )
 
-
-
 //-----------------------------------------------------------------------------
 // BlockExecutor handles block execution and state updates.
 // It exposes ApplyBlock(), which validates & executes the block, updates state w/ ABCI responses,
@@ -287,15 +285,14 @@ execute:
 	// Run txs of block.
 	// Immediately re-execute the block if a transaction returns ErrCodeReExecBlock.
 	for _, tx := range block.Txs {
-		x := proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
+		reqRes := proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
 			return nil, err
 		}
 
-		if x.Response.GetDeliverTx().Code == ErrCodeReExecBlock {
-			reason := x.Response.GetDeliverTx().GetLog()
-			logger.Error("Block code detected...re-executing block", "reason", reason)
-			time.Sleep(1 * time.Second)
+		if reqRes.Response.GetDeliverTx().Code == ErrCodeReExecBlock {
+			reason := reqRes.Response.GetDeliverTx().GetLog()
+			logger.Error("Failed transaction has requested a block re-execution", "reason", reason)
 			goto execute
 		}
 	}
