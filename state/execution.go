@@ -13,10 +13,7 @@ import (
 	dbm "github.com/tendermint/tm-db"
 )
 
-// ErrCodeReExecBlock describes a code for instructing the re-execution of a
-// block. The ABCI app can return this code as a transaction execution response
-// code to force the execution of the containing block.
-const ErrCodeReExecBlock = uint32(10)
+
 
 //-----------------------------------------------------------------------------
 // BlockExecutor handles block execution and state updates.
