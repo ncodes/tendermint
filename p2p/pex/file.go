@@ -10,9 +10,9 @@ import (
 
 /* Loading & Saving */
 
-type addrBookJSON struct {
+type AddrBookJSON struct {
 	Key   string          `json:"key"`
-	Addrs []*knownAddress `json:"addrs"`
+	Addrs []*KnownAddress `json:"addrs"`
 }
 
 func (a *addrBook) saveToFile(filePath string) {
@@ -21,11 +21,11 @@ func (a *addrBook) saveToFile(filePath string) {
 
 	a.Logger.Info("Saving AddrBook to file", "size", a.size())
 
-	addrs := make([]*knownAddress, 0, len(a.addrLookup))
+	addrs := make([]*KnownAddress, 0, len(a.addrLookup))
 	for _, ka := range a.addrLookup {
 		addrs = append(addrs, ka)
 	}
-	aJSON := &addrBookJSON{
+	aJSON := &AddrBookJSON{
 		Key:   a.key,
 		Addrs: addrs,
 	}
@@ -50,13 +50,13 @@ func (a *addrBook) loadFromFile(filePath string) bool {
 		return false
 	}
 
-	// Load addrBookJSON{}
+	// Load AddrBookJSON{}
 	r, err := os.Open(filePath)
 	if err != nil {
 		panic(fmt.Sprintf("Error opening file %s: %v", filePath, err))
 	}
 	defer r.Close() // nolint: errcheck
-	aJSON := &addrBookJSON{}
+	aJSON := &AddrBookJSON{}
 	dec := json.NewDecoder(r)
 	err = dec.Decode(aJSON)
 	if err != nil {

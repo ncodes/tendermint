@@ -2,6 +2,11 @@ package state
 
 import "fmt"
 
+// ErrCodeReExecBlock describes a code for instructing the re-execution of a
+// block. The ABCI app can return this code as a transaction execution response
+// code to force the execution of the containing block.
+const ErrCodeReExecBlock = uint32(10)
+
 type (
 	ErrInvalidBlock error
 	ErrProxyAppConn error

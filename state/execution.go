@@ -242,6 +242,7 @@ func execBlockOnProxyApp(
 	block *types.Block,
 	stateDB dbm.DB,
 ) (*ABCIResponses, error) {
+execute:
 	var validTxs, invalidTxs = 0, 0
 
 	txIndex := 0
@@ -282,10 +283,17 @@ func execBlockOnProxyApp(
 	}
 
 	// Run txs of block.
+	// Immediately re-execute the block if a transaction returns ErrCodeReExecBlock.
 	for _, tx := range block.Txs {
-		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
+		reqRes := proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
 			return nil, err
+		}
+
+		if reqRes.Response.GetDeliverTx().Code == ErrCodeReExecBlock {
+			reason := reqRes.Response.GetDeliverTx().GetLog()
+			logger.Error("Failed transaction has requested a block re-execution", "reason", reason)
+			goto execute
 		}
 	}
 

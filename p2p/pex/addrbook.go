@@ -84,9 +84,9 @@ type addrBook struct {
 	rand       *cmn.Rand
 	ourAddrs   map[string]struct{}
 	privateIDs map[p2p.ID]struct{}
-	addrLookup map[p2p.ID]*knownAddress // new & old
-	bucketsOld []map[string]*knownAddress
-	bucketsNew []map[string]*knownAddress
+	addrLookup map[p2p.ID]*KnownAddress // new & old
+	bucketsOld []map[string]*KnownAddress
+	bucketsNew []map[string]*KnownAddress
 	nOld       int
 	nNew       int
 
@@ -105,7 +105,7 @@ func NewAddrBook(filePath string, routabilityStrict bool) *addrBook {
 		rand:              cmn.NewRand(),
 		ourAddrs:          make(map[string]struct{}),
 		privateIDs:        make(map[p2p.ID]struct{}),
-		addrLookup:        make(map[p2p.ID]*knownAddress),
+		addrLookup:        make(map[p2p.ID]*KnownAddress),
 		filePath:          filePath,
 		routabilityStrict: routabilityStrict,
 	}
@@ -119,14 +119,14 @@ func NewAddrBook(filePath string, routabilityStrict bool) *addrBook {
 func (a *addrBook) init() {
 	a.key = crypto.CRandHex(24) // 24/2 * 8 = 96 bits
 	// New addr buckets
-	a.bucketsNew = make([]map[string]*knownAddress, newBucketCount)
+	a.bucketsNew = make([]map[string]*KnownAddress, newBucketCount)
 	for i := range a.bucketsNew {
-		a.bucketsNew[i] = make(map[string]*knownAddress)
+		a.bucketsNew[i] = make(map[string]*KnownAddress)
 	}
 	// Old addr buckets
-	a.bucketsOld = make([]map[string]*knownAddress, oldBucketCount)
+	a.bucketsOld = make([]map[string]*KnownAddress, oldBucketCount)
 	for i := range a.bucketsOld {
-		a.bucketsOld[i] = make(map[string]*knownAddress)
+		a.bucketsOld[i] = make(map[string]*KnownAddress)
 	}
 }
 
@@ -269,7 +269,7 @@ func (a *addrBook) PickAddress(biasTowardsNewAddrs int) *p2p.NetAddress {
 	newCorrelation := math.Sqrt(float64(a.nNew)) * float64(biasTowardsNewAddrs)
 
 	// pick a random peer from a random bucket
-	var bucket map[string]*knownAddress
+	var bucket map[string]*KnownAddress
 	pickFromOldBucket := (newCorrelation+oldCorrelation)*a.rand.Float64() < oldCorrelation
 	if (pickFromOldBucket && a.nOld == 0) ||
 		(!pickFromOldBucket && a.nNew == 0) {
@@ -453,7 +453,7 @@ out:
 
 //----------------------------------------------------------
 
-func (a *addrBook) getBucket(bucketType byte, bucketIdx int) map[string]*knownAddress {
+func (a *addrBook) getBucket(bucketType byte, bucketIdx int) map[string]*KnownAddress {
 	switch bucketType {
 	case bucketTypeNew:
 		return a.bucketsNew[bucketIdx]
@@ -466,7 +466,7 @@ func (a *addrBook) getBucket(bucketType byte, bucketIdx int) map[string]*knownAd
 
 // Adds ka to new bucket. Returns false if it couldn't do it cuz buckets full.
 // NOTE: currently it always returns true.
-func (a *addrBook) addToNewBucket(ka *knownAddress, bucketIdx int) {
+func (a *addrBook) addToNewBucket(ka *KnownAddress, bucketIdx int) {
 	// Sanity check
 	if ka.isOld() {
 		a.Logger.Error("Failed Sanity Check! Cant add old address to new bucket", "ka", ka, "bucket", bucketIdx)
@@ -499,7 +499,7 @@ func (a *addrBook) addToNewBucket(ka *knownAddress, bucketIdx int) {
 }
 
 // Adds ka to old bucket. Returns false if it couldn't do it cuz buckets full.
-func (a *addrBook) addToOldBucket(ka *knownAddress, bucketIdx int) bool {
+func (a *addrBook) addToOldBucket(ka *KnownAddress, bucketIdx int) bool {
 	// Sanity check
 	if ka.isNew() {
 		a.Logger.Error(fmt.Sprintf("Cannot add new address to old bucket: %v", ka))
@@ -535,7 +535,7 @@ func (a *addrBook) addToOldBucket(ka *knownAddress, bucketIdx int) bool {
 	return true
 }
 
-func (a *addrBook) removeFromBucket(ka *knownAddress, bucketType byte, bucketIdx int) {
+func (a *addrBook) removeFromBucket(ka *KnownAddress, bucketType byte, bucketIdx int) {
 	if ka.BucketType != bucketType {
 		a.Logger.Error(fmt.Sprintf("Bucket type mismatch: %v", ka))
 		return
@@ -552,7 +552,7 @@ func (a *addrBook) removeFromBucket(ka *knownAddress, bucketType byte, bucketIdx
 	}
 }
 
-func (a *addrBook) removeFromAllBuckets(ka *knownAddress) {
+func (a *addrBook) removeFromAllBuckets(ka *KnownAddress) {
 	for _, bucketIdx := range ka.Buckets {
 		bucket := a.getBucket(ka.BucketType, bucketIdx)
 		delete(bucket, ka.Addr.String())
@@ -568,9 +568,9 @@ func (a *addrBook) removeFromAllBuckets(ka *knownAddress) {
 
 //----------------------------------------------------------
 
-func (a *addrBook) pickOldest(bucketType byte, bucketIdx int) *knownAddress {
+func (a *addrBook) pickOldest(bucketType byte, bucketIdx int) *KnownAddress {
 	bucket := a.getBucket(bucketType, bucketIdx)
-	var oldest *knownAddress
+	var oldest *KnownAddress
 	for _, ka := range bucket {
 		if oldest == nil || ka.LastAttempt.Before(oldest.LastAttempt) {
 			oldest = ka
@@ -632,7 +632,7 @@ func (a *addrBook) addAddress(addr, src *p2p.NetAddress) error {
 }
 
 func (a *addrBook) randomPickAddresses(bucketType byte, num int) []*p2p.NetAddress {
-	var buckets []map[string]*knownAddress
+	var buckets []map[string]*KnownAddress
 	switch bucketType {
 	case bucketTypeNew:
 		buckets = a.bucketsNew
@@ -645,7 +645,7 @@ func (a *addrBook) randomPickAddresses(bucketType byte, num int) []*p2p.NetAddre
 	for _, bucket := range buckets {
 		total += len(bucket)
 	}
-	addresses := make([]*knownAddress, 0, total)
+	addresses := make([]*KnownAddress, 0, total)
 	for _, bucket := range buckets {
 		for _, ka := range bucket {
 			addresses = append(addresses, ka)
@@ -689,7 +689,7 @@ func (a *addrBook) expireNew(bucketIdx int) {
 // Promotes an address from new to old. If the destination bucket is full,
 // demote the oldest one to a "new" bucket.
 // TODO: Demote more probabilistically?
-func (a *addrBook) moveToOld(ka *knownAddress) {
+func (a *addrBook) moveToOld(ka *KnownAddress) {
 	// Sanity check
 	if ka.isOld() {
 		a.Logger.Error(fmt.Sprintf("Cannot promote address that is already old %v", ka))
